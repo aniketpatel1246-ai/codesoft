@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CineGenre — IMDB Movie Genre Classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,500;0,700;1,300;1,500&family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #08080d;
+  --s1:       #0f0f16;
+  --s2:       #15151e;
+  --s3:       #1c1c27;
+  --b1:       #222230;
+  --b2:       #2e2e40;
+  --amber:    #e8b84b;
+  --amber2:   #c49a35;
+  --amber3:   #8a6a20;
+  --glow:     rgba(232,184,75,.14);
+  --parchment:#ede8d8;
+  --text:     #c8c3b0;
+  --muted:    #585870;
+  --muted2:   #3e3e52;
+  --red:      #c95f5f;
+  --green:    #4db87a;
+  --r:        10px;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  font-weight:400;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* Grain overlay */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  opacity:.2;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
+
+/* ── Header ─────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 44px;
+  border-bottom:1px solid var(--b1);
+  position:sticky;top:0;z-index:200;
+  background:rgba(8,8,13,.92);
+  backdrop-filter:blur(18px);
+}
+.logo{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.55rem;font-weight:700;letter-spacing:.04em;
+  color:var(--amber);
+  display:flex;align-items:center;gap:12px;
+}
+.logo-reel{
+  display:flex;gap:3px;align-items:center;
+}
+.reel-hole{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--amber);
+  animation:reel-spin 2s linear infinite;
+}
+.reel-hole:nth-child(2){animation-delay:.66s}
+.reel-hole:nth-child(3){animation-delay:1.33s}
+@keyframes reel-spin{0%,100%{opacity:1}33%{opacity:.2}}
+
+.api-badge{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 13px;border-radius:999px;
+  border:1px solid var(--b2);
+  font-family:'JetBrains Mono',monospace;
+  font-size:.65rem;color:var(--muted);
+  transition:all .3s;
+}
+.api-badge.live{border-color:rgba(77,184,122,.4);color:var(--green)}
+.api-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:.3s}
+.api-badge.live .api-dot{
+  background:var(--green);box-shadow:0 0 8px var(--green);
+  animation:blink 2.2s infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Hero ───────────────────────────────────────────── */
+.hero{
+  text-align:center;
+  padding:68px 24px 52px;
+}
+.hero-eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--amber3);margin-bottom:20px;
+}
+.hero h1{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(2.6rem,6vw,5rem);
+  font-weight:700;line-height:1.06;
+  color:var(--parchment);
+  margin-bottom:18px;
+}
+.hero h1 em{color:var(--amber);font-style:italic}
+.hero p{
+  font-size:.93rem;color:var(--muted);
+  max-width:480px;margin:0 auto 36px;line-height:1.8;
+}
+
+/* Stats row */
+.stats-row{
+  display:inline-flex;gap:0;
+  border:1px solid var(--b1);border-radius:var(--r);
+  background:var(--s1);overflow:hidden;
+}
+.stat{
+  padding:13px 22px;
+  border-right:1px solid var(--b1);
+  font-family:'JetBrains Mono',monospace;
+  font-size:.68rem;color:var(--muted);
+  text-align:center;
+}
+.stat:last-child{border-right:none}
+.stat b{
+  display:block;font-family:'Cormorant Garamond',serif;
+  font-size:1.45rem;font-weight:700;
+  color:var(--parchment);margin-bottom:2px;
+}
+
+/* Filmstrip deco */
+.filmstrip{
+  display:flex;justify-content:center;
+  gap:3px;margin:32px auto 0;width:fit-content;
+}
+.frame{
+  width:30px;height:20px;
+  border:1px solid var(--b2);border-radius:2px;
+  background:var(--s1);
+  display:flex;flex-direction:column;
+  justify-content:space-between;padding:2px;
+}
+.frame-hole{height:4px;background:var(--bg);border-radius:1px}
+.frame.lit{border-color:var(--amber);background:rgba(232,184,75,.07)}
+
+/* ── Layout ─────────────────────────────────────────── */
+.main{
+  max-width:1020px;margin:0 auto;
+  padding:44px 24px 0;
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:22px;align-items:start;
+}
+@media(max-width:740px){
+  .main{grid-template-columns:1fr}
+  header{padding:16px 18px}
+  .stats-row{flex-direction:column;gap:0;width:fit-content}
+  .stat{border-right:none;border-bottom:1px solid var(--b1)}
+  .stat:last-child{border-bottom:none}
+}
+
+/* ── Card ───────────────────────────────────────────── */
+.card{
+  background:var(--s1);
+  border:1px solid var(--b1);
+  border-radius:var(--r);
+  padding:26px;
+  transition:border-color .3s,box-shadow .3s;
+}
+.card:focus-within{
+  border-color:var(--amber3);
+  box-shadow:0 0 0 1px var(--amber3), 0 0 40px var(--glow);
+}
+.card-hd{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:20px;
+}
+.card-hd-line{flex:1;height:1px;background:var(--b1)}
+.card-lbl{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--amber3);white-space:nowrap;
+}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:18px}
+.tab{
+  flex:1;padding:8px;border-radius:6px;
+  border:1px solid var(--b1);
+  font-size:.75rem;font-weight:500;
+  color:var(--muted);cursor:pointer;transition:all .2s;text-align:center;
+  background:transparent;
+}
+.tab:hover{border-color:var(--b2);color:var(--text)}
+.tab.on{background:rgba(232,184,75,.09);border-color:var(--amber3);color:var(--amber)}
+
+/* Demo pills */
+.demos{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:18px}
+.demo{
+  padding:4px 11px;border-radius:999px;
+  border:1px solid var(--b1);
+  font-size:.7rem;color:var(--muted);
+  cursor:pointer;transition:all .18s;
+}
+.demo:hover{border-color:var(--amber3);color:var(--amber)}
+
+/* Fields */
+.fld{margin-bottom:16px}
+.fld label{
+  display:block;font-size:.7rem;font-weight:600;
+  color:var(--muted);margin-bottom:7px;
+  text-transform:uppercase;letter-spacing:.05em;
+}
+input,textarea{
+  width:100%;
+  background:var(--bg);
+  border:1px solid var(--b1);
+  border-radius:7px;
+  padding:11px 14px;
+  color:var(--parchment);
+  font-family:'Inter',sans-serif;
+  font-size:.875rem;
+  outline:none;resize:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+input:focus,textarea:focus{
+  border-color:var(--amber3);
+  box-shadow:0 0 0 3px var(--glow);
+}
+input::placeholder,textarea::placeholder{color:var(--muted2)}
+textarea{min-height:128px;line-height:1.65}
+#batchArea{font-family:'JetBrains Mono',monospace;font-size:.77rem;min-height:155px}
+
+/* Button */
+.btn{
+  width:100%;padding:13px;
+  background:var(--amber);border:none;border-radius:7px;
+  color:#08080d;font-family:'Inter',sans-serif;
+  font-size:.875rem;font-weight:600;letter-spacing:.02em;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .18s,transform .12s,box-shadow .18s;
+}
+.btn:hover:not(:disabled){
+  background:#f0c85a;transform:translateY(-1px);
+  box-shadow:0 8px 30px rgba(232,184,75,.28);
+}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.spin{
+  width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#08080d;
+  border-radius:50%;animation:s .6s linear infinite;
+}
+@keyframes s{to{transform:rotate(360deg)}}
+
+/* Error */
+.err{
+  margin-top:11px;padding:10px 13px;
+  background:rgba(201,95,95,.08);border:1px solid rgba(201,95,95,.25);
+  border-radius:7px;font-size:.78rem;color:var(--red);
+}
+
+/* ── Result panel ───────────────────────────────────── */
+.result{
+  background:var(--s1);border:1px solid var(--b1);
+  border-radius:var(--r);
+  min-height:310px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  transition:border-color .4s,box-shadow .4s;
+  overflow:hidden;
+}
+.result.has{
+  border-color:var(--amber3);
+  box-shadow:0 0 44px var(--glow);
+  align-items:stretch;justify-content:flex-start;
+}
+.result-empty{
+  color:var(--muted2);font-size:.84rem;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:32px;text-align:center;
+}
+.result-empty svg{opacity:.18}
+
+/* Result content */
+.ri{padding:26px;width:100%}
+
+.genre-badge{
+  display:inline-flex;align-items:center;gap:11px;
+  padding:11px 22px;border-radius:999px;
+  border:1px solid var(--amber2);
+  background:rgba(232,184,75,.07);
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.6rem;font-weight:700;color:var(--amber);
+  margin-bottom:22px;
+  animation:pop .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes pop{from{opacity:0;transform:scale(.75)}to{opacity:1;transform:scale(1)}}
+
+.ri-lbl{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:4px;
+}
+.ri-title{
+  font-family:'Cormorant Garamond',serif;
+  font-style:italic;font-size:1.1rem;color:var(--parchment);
+  margin-bottom:20px;
+}
+
+.div{height:1px;background:var(--b1);margin:18px 0}
+
+/* Confidence */
+.cf-hd{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:11px;
+}
+.cf-row{
+  display:grid;grid-template-columns:96px 1fr 38px;
+  align-items:center;gap:8px;margin-bottom:7px;
+  animation:fadeup .35s ease both;
+}
+@keyframes fadeup{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.cf-name{font-size:.76rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf-track{height:3px;background:var(--b1);border-radius:2px;overflow:hidden}
+.cf-fill{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,var(--amber3),var(--amber));
+  transition:width .7s cubic-bezier(.4,0,.2,1);
+}
+.cf-fill.top{background:linear-gradient(90deg,var(--amber),#f8dc80)}
+.cf-pct{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.63rem;color:var(--muted);text-align:right;
+}
+.lat{
+  margin-top:14px;font-family:'JetBrains Mono',monospace;
+  font-size:.6rem;color:var(--muted2);
+}
+
+/* Batch table */
+.btbl{width:100%;border-collapse:collapse;font-size:.8rem}
+.btbl th{
+  text-align:left;padding:8px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:.58rem;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--b1);
+}
+.btbl td{padding:9px 12px;border-bottom:1px solid var(--b1);color:var(--text)}
+.btbl tr:last-child td{border-bottom:none}
+.btbl-ttl{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic}
+.btbl-genre{color:var(--amber);font-weight:600;font-size:.78rem}
+
+/* ── Genre Explorer ─────────────────────────────────── */
+.section{max-width:1020px;margin:48px auto 0;padding:0 24px}
+.sec-hd{
+  display:flex;align-items:center;gap:12px;margin-bottom:20px;
+}
+.sec-hd span{
+  font-family:'JetBrains Mono',monospace;font-size:.6rem;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  white-space:nowrap;
+}
+.sec-line{flex:1;height:1px;background:var(--b1)}
+
+.genre-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  gap:8px;
+}
+.g-tile{
+  padding:14px;background:var(--s1);
+  border:1px solid var(--b1);border-radius:var(--r);
+  cursor:pointer;transition:all .2s;
+}
+.g-tile:hover{border-color:var(--amber3);background:rgba(232,184,75,.05)}
+.g-ico{font-size:1.4rem;margin-bottom:6px}
+.g-name{font-size:.78rem;font-weight:600;color:var(--text);text-transform:capitalize;margin-bottom:3px}
+.g-cnt{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted)}
+.g-bar{margin-top:7px;height:2px;background:var(--b1);border-radius:1px;overflow:hidden}
+.g-bar-fill{height:100%;border-radius:1px;background:linear-gradient(90deg,var(--amber3),var(--amber))}
+
+/* ── History ────────────────────────────────────────── */
+.history{max-width:1020px;margin:40px auto 64px;padding:0 24px;display:none}
+.h-list{display:flex;flex-direction:column;gap:7px}
+.h-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;
+  background:var(--s1);border:1px solid var(--b1);
+  border-radius:8px;cursor:pointer;transition:border-color .2s;
+  animation:fadeup .3s ease;
+}
+.h-item:hover{border-color:var(--b2)}
+.h-title{font-size:.84rem;color:var(--parchment);font-style:italic}
+.h-genre{
+  font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--amber);
+  padding:3px 10px;border-radius:999px;
+  border:1px solid rgba(232,184,75,.2);background:rgba(232,184,75,.05);
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-reel">
+      <div class="reel-hole"></div>
+      <div class="reel-hole"></div>
+      <div class="reel-hole"></div>
+    </div>
+    CineGenre
+  </div>
+  <div class="api-badge" id="apiBadge">
+    <div class="api-dot"></div>
+    <span id="apiTxt">connecting…</span>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-eyebrow">✦ Machine Learning · 54 214 IMDB Films</div>
+  <h1>Know your movie's<br><em>genre in seconds</em></h1>
+  <p>Paste any title and synopsis. Our TF-IDF + LinearSVC classifier — trained on real IMDB data across 27 genres — reads the story and labels the film.</p>
+  <div class="stats-row">
+    <div class="stat"><b>54,214</b>training films</div>
+    <div class="stat"><b>27</b>genres</div>
+    <div class="stat"><b>60 K</b>features</div>
+    <div class="stat"><b>5-fold</b>CV</div>
+    <div class="stat"><b>~65%</b>accuracy</div>
+  </div>
+  <div class="filmstrip" id="filmstrip"></div>
+</section>
+
+<!-- Main grid -->
+<div class="main">
+
+  <!-- Left: Input -->
+  <div>
+    <div class="card" id="card">
+      <div class="card-hd">
+        <div class="card-lbl">Classify a film</div>
+        <div class="card-hd-line"></div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab on" id="tSingle" onclick="setTab('single')">Single Movie</div>
+        <div class="tab"    id="tBatch"  onclick="setTab('batch')">Batch / CSV</div>
+      </div>
+
+      <!-- single -->
+      <div id="mSingle">
+        <div class="demos" id="demoRow"></div>
+        <div class="fld">
+          <label>Movie Title</label>
+          <input id="titleIn" type="text" placeholder="e.g. The Dark Knight (2008)"/>
+        </div>
+        <div class="fld">
+          <label>Synopsis</label>
+          <textarea id="descIn" placeholder="When the menace known as the Joker wreaks havoc and chaos on the people of Gotham…"></textarea>
+        </div>
+      </div>
+
+      <!-- batch -->
+      <div id="mBatch" style="display:none">
+        <div class="fld">
+          <label>One movie per line — title, description (CSV)</label>
+          <textarea id="batchArea" placeholder='The Dark Knight,"When the Joker wreaks havoc on Gotham, Batman faces his greatest test."
+Toy Story,"A cowboy doll is threatened by the arrival of a new spaceman toy."
+Interstellar,"Explorers travel through a wormhole to ensure humanity's survival."'></textarea>
+        </div>
+      </div>
+
+      <button class="btn" id="runBtn" onclick="go()">
+        <span id="btnIco">🎬</span>
+        <span id="btnTxt">Classify Genre</span>
+      </button>
+      <div id="errBox"></div>
+    </div>
+  </div>
+
+  <!-- Right: Result -->
+  <div class="result" id="resultPanel">
+    <div class="result-empty" id="rEmpty">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="M8 4v16M16 4v16M2 8h4M2 12h4M2 16h4M18 8h4M18 12h4M18 16h4"/>
+      </svg>
+      <div>Genre prediction appears here</div>
+      <div style="font-size:.7rem;color:var(--muted2)">Try a demo film · Ctrl+Enter to classify</div>
+    </div>
+    <div id="rContent" style="display:none;width:100%"></div>
+  </div>
+
+</div>
+
+<!-- Genre Explorer -->
+<div class="section">
+  <div class="sec-hd">
+    <div class="sec-line"></div>
+    <span>All 27 Genres — Training Distribution</span>
+    <div class="sec-line"></div>
+  </div>
+  <div class="genre-grid" id="genreGrid"></div>
+</div>
+
+<!-- History -->
+<div class="history" id="histSection">
+  <div class="sec-hd">
+    <div class="sec-line"></div>
+    <span>Recent Predictions</span>
+    <div class="sec-line"></div>
+  </div>
+  <div class="h-list" id="histList"></div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const API = "http://localhost:8000";
+
+const GENRES = [
+  {n:"drama",      c:13613,ico:"🎭"}, {n:"documentary",c:13096,ico:"📽️"},
+  {n:"comedy",     c:7447, ico:"😄"}, {n:"short",      c:5073, ico:"⏱️"},
+  {n:"horror",     c:2204, ico:"👻"}, {n:"thriller",   c:1591, ico:"😱"},
+  {n:"action",     c:1315, ico:"⚔️"}, {n:"western",    c:1032, ico:"🤠"},
+  {n:"reality-tv", c:884,  ico:"📺"}, {n:"family",     c:784,  ico:"👨‍👩‍👧"},
+  {n:"adventure",  c:775,  ico:"🗺️"}, {n:"music",      c:731,  ico:"🎵"},
+  {n:"romance",    c:672,  ico:"💕"}, {n:"sci-fi",     c:647,  ico:"🚀"},
+  {n:"adult",      c:590,  ico:"🔞"}, {n:"crime",      c:505,  ico:"🔍"},
+  {n:"animation",  c:498,  ico:"🎨"}, {n:"sport",      c:432,  ico:"🏆"},
+  {n:"talk-show",  c:391,  ico:"🎙️"}, {n:"fantasy",    c:323,  ico:"🧙"},
+  {n:"mystery",    c:319,  ico:"🕵️"}, {n:"musical",    c:277,  ico:"🎼"},
+  {n:"biography",  c:265,  ico:"📖"}, {n:"history",    c:243,  ico:"🏛️"},
+  {n:"game-show",  c:194,  ico:"🎮"}, {n:"news",       c:181,  ico:"📰"},
+  {n:"war",        c:132,  ico:"🪖"},
+];
+const MAX_C = 13613;
+
+const DEMOS = [
+  {label:"Dark Knight",   title:"The Dark Knight (2008)",
+   desc:"When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice."},
+  {label:"Toy Story",     title:"Toy Story (1995)",
+   desc:"A cowboy doll is threatened and jealous when a new spaceman figure supplants him as top toy in a boy's bedroom. The two must work together to return home."},
+  {label:"Interstellar",  title:"Interstellar (2014)",
+   desc:"A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival when Earth is becoming uninhabitable."},
+  {label:"The Notebook",  title:"The Notebook (2004)",
+   desc:"A poor yet passionate young man falls in love with a rich girl forbidden to see him. Years later their story is read from a faded notebook to a nursing-home resident."},
+  {label:"Parasite",      title:"Parasite (2019)",
+   desc:"Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan."},
+];
+
+// ── Build filmstrip ──────────────────────────────────────────────────────────
+(()=>{
+  const s = document.getElementById("filmstrip");
+  for(let i=0;i<9;i++){
+    const f = document.createElement("div");
+    f.className = "frame" + (i===4?" lit":"");
+    f.innerHTML = '<div class="frame-hole"></div><div class="frame-hole"></div>';
+    s.appendChild(f);
+  }
+})();
+
+// ── Build demo pills ─────────────────────────────────────────────────────────
+(()=>{
+  const row = document.getElementById("demoRow");
+  DEMOS.forEach(d=>{
+    const p = document.createElement("div");
+    p.className="demo"; p.textContent=d.label;
+    p.onclick=()=>{
+      document.getElementById("titleIn").value=d.title;
+      document.getElementById("descIn").value=d.desc;
+    };
+    row.appendChild(p);
+  });
+})();
+
+// ── Build genre grid ─────────────────────────────────────────────────────────
+(()=>{
+  const g = document.getElementById("genreGrid");
+  GENRES.forEach(x=>{
+    const pct=Math.round(x.c/MAX_C*100);
+    const t=document.createElement("div");
+    t.className="g-tile";
+    t.innerHTML=`<div class="g-ico">${x.ico}</div>
+      <div class="g-name">${x.n}</div>
+      <div class="g-cnt">${x.c.toLocaleString()} films</div>
+      <div class="g-bar"><div class="g-bar-fill" style="width:${pct}%"></div></div>`;
+    t.onclick=()=>{ document.getElementById("titleIn").value=""; setTab("single"); document.getElementById("titleIn").focus(); };
+    g.appendChild(t);
+  });
+})();
+
+// ── Tab switch ────────────────────────────────────────────────────────────────
+let mode="single";
+function setTab(t){
+  mode=t;
+  document.getElementById("tSingle").classList.toggle("on",t==="single");
+  document.getElementById("tBatch").classList.toggle("on",t==="batch");
+  document.getElementById("mSingle").style.display=t==="single"?"":"none";
+  document.getElementById("mBatch").style.display=t==="batch"?"":"none";
+}
+
+// ── API health ────────────────────────────────────────────────────────────────
+(async()=>{
+  const badge=document.getElementById("apiBadge"),txt=document.getElementById("apiTxt");
+  try{
+    const r=await fetch(`${API}/health`,{signal:AbortSignal.timeout(4000)});
+    if(r.ok){const d=await r.json();badge.classList.add("live");txt.textContent=d.model_loaded?"model ready":"api up · no model";return;}
+  }catch{}
+  txt.textContent="api offline";
+})();
+
+// ── Prediction history ────────────────────────────────────────────────────────
+const hist=[];
+function addHist(title,genre){
+  hist.unshift({title,genre});if(hist.length>8)hist.pop();
+  const sec=document.getElementById("histSection"),list=document.getElementById("histList");
+  sec.style.display="block"; list.innerHTML="";
+  hist.forEach(h=>{
+    const el=document.createElement("div");el.className="h-item";
+    el.innerHTML=`<div class="h-title">${h.title}</div><div class="h-genre">${icon(h.genre)} ${h.genre}</div>`;
+    el.onclick=()=>{document.getElementById("titleIn").value=h.title;setTab("single");};
+    list.appendChild(el);
+  });
+}
+function icon(g){return (GENRES.find(x=>x.n===g?.toLowerCase())||{ico:"🎬"}).ico}
+
+// ── Main classify function ────────────────────────────────────────────────────
+async function go(){
+  const btn=document.getElementById("runBtn"),ico=document.getElementById("btnIco"),txt=document.getElementById("btnTxt");
+  const err=document.getElementById("errBox");
+  err.innerHTML=""; btn.disabled=true;
+  ico.innerHTML='<div class="spin"></div>'; txt.textContent="Analysing…";
+  try{
+    if(mode==="single") await doSingle();
+    else await doBatch();
+  }catch(e){
+    err.innerHTML=`<div class="err">⚠️ ${e.message}</div>`;
+  }finally{
+    btn.disabled=false; ico.textContent="🎬"; txt.textContent="Classify Genre";
+  }
+}
+
+async function doSingle(){
+  const title=document.getElementById("titleIn").value.trim();
+  const desc=document.getElementById("descIn").value.trim();
+  if(!title&&!desc) throw new Error("Enter a title or description.");
+  let data;
+  try{
+    const r=await fetch(`${API}/predict`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description:desc})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||`Server error ${r.status}`);}
+    data=await r.json();
+  }catch(e){
+    if(e.message.includes("fetch")||e.message.includes("NetworkError")){
+      data=mockData(title,desc);
+      document.getElementById("errBox").innerHTML='<div class="err">API offline — demo prediction shown</div>';
+    }else throw e;
+  }
+  renderSingle(data);
+  addHist(title||"(untitled)",data.genre);
+}
+
+async function doBatch(){
+  const raw=document.getElementById("batchArea").value.trim();
+  if(!raw) throw new Error("Paste at least one line.");
+  const movies=raw.split("\n").map((line,i)=>{
+    const m=line.match(/("(?:[^"\\]|\\.)*"|[^,]+)(?:,|$)/g)||[];
+    const c=m.map(p=>p.replace(/^"|"$/g,"").replace(/,$/,"").trim());
+    return{id:String(i+1),title:c[0]||"",description:c[1]||""};
+  }).filter(m=>m.title||m.description);
+  if(!movies.length) throw new Error("No valid rows found.");
+  let data;
+  try{
+    const r=await fetch(`${API}/batch`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({movies})});
+    if(!r.ok) throw new Error(`Server error ${r.status}`);
+    data=await r.json();
+  }catch(e){
+    if(e.message.includes("fetch")||e.message.includes("NetworkError")){
+      data={predictions:movies.map(m=>({...m,genre:mockGenre()})),latency_ms:0};
+      document.getElementById("errBox").innerHTML='<div class="err">API offline — demo predictions shown</div>';
+    }else throw e;
+  }
+  renderBatch(data);
+}
+
+// ── Render functions ──────────────────────────────────────────────────────────
+function renderSingle(data){
+  const panel=document.getElementById("resultPanel"),empty=document.getElementById("rEmpty"),content=document.getElementById("rContent");
+  empty.style.display="none"; content.style.display="block"; panel.classList.add("has");
+  const conf=data.confidence, topVal=conf?Math.max(...Object.values(conf)):1, isProba=conf&&topVal<=1;
+  let cfHTML="";
+  if(conf){
+    cfHTML='<div class="cf-hd">Confidence breakdown</div>';
+    Object.entries(conf).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([g,v],i)=>{
+      const pct=isProba?Math.round(v*100):Math.round(v/topVal*100);
+      cfHTML+=`<div class="cf-row" style="animation-delay:${i*.07}s">
+        <div class="cf-name">${g}</div>
+        <div class="cf-track"><div class="cf-fill ${i===0?"top":""}" style="width:${Math.max(pct,3)}%"></div></div>
+        <div class="cf-pct">${pct}%</div></div>`;
+    });
+  }
+  content.innerHTML=`<div class="ri">
+    <div class="card-hd" style="margin-bottom:14px"><div class="card-lbl">Prediction</div><div class="card-hd-line"></div></div>
+    <div class="ri-lbl">Movie</div>
+    <div class="ri-title">${data.title||"(untitled)"}</div>
+    <div class="genre-badge">${icon(data.genre)} ${data.genre}</div>
+    ${conf?`<div class="div"></div>${cfHTML}`:""}
+    ${data.latency_ms?`<div class="lat">⚡ ${data.latency_ms} ms</div>`:""}
+  </div>`;
+}
+
+function renderBatch(data){
+  const panel=document.getElementById("resultPanel"),empty=document.getElementById("rEmpty"),content=document.getElementById("rContent");
+  empty.style.display="none"; content.style.display="block"; panel.classList.add("has");
+  const rows=data.predictions.map(p=>`<tr><td class="btbl-ttl">${p.title}</td><td class="btbl-genre">${icon(p.genre)} ${p.genre}</td></tr>`).join("");
+  content.innerHTML=`<div class="ri">
+    <div class="card-hd" style="margin-bottom:14px"><div class="card-lbl">Batch — ${data.predictions.length} films</div><div class="card-hd-line"></div></div>
+    <div style="overflow-x:auto"><table class="btbl"><thead><tr><th>Title</th><th>Genre</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${data.latency_ms?`<div class="lat" style="margin-top:12px">⚡ ${data.latency_ms} ms total</div>`:""}
+  </div>`;
+}
+
+// ── Mock (offline demo) ───────────────────────────────────────────────────────
+const MOCK=["drama","thriller","comedy","action","romance","sci-fi","horror","documentary"];
+function mockGenre(){return MOCK[Math.floor(Math.random()*MOCK.length)]}
+function mockData(title,desc){
+  const g=mockGenre(),conf={};
+  MOCK.slice(0,5).forEach((x,i)=>conf[x]=i===0?.6+Math.random()*.3:Math.random()*.4);
+  conf[g]=Math.max(...Object.values(conf))+.1;
+  return{title:title||"(untitled)",genre:g,confidence:conf,latency_ms:0};
+}
+
+// ── Keyboard shortcut ─────────────────────────────────────────────────────────
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")go()});
+</script>
+</body>
+</html>

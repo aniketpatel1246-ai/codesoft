@@ -1,0 +1,7 @@
+SMS Spam Classifier — Model Comparison
+==================================================================
+Model                    Accuracy  Precision     Recall         F1
+------------------------------------------------------------------
+Naive Bayes                0.9767     0.9767     0.8456     0.9065
+Logistic Regression        0.9596     0.9815     0.7114     0.8249
+SVM (Linear)               0.9839     1.0000     0.8792     0.9357
